@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: sensorfleet
+      POSTGRES_USER: sensoruser
+      POSTGRES_PASSWORD: sensorpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sensoruser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sensor-data:
+    build: ./sensor-data
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://sensoruser:sensorpass@postgres:5432/sensorfleet
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./sensor-data:/app
+
+  alerts:
+    build: ./alerts
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://sensoruser:sensorpass@postgres:5432/sensorfleet
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./alerts:/app
+
+  analytics:
+    build: ./analytics
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql://sensoruser:sensorpass@postgres:5432/sensorfleet
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./analytics:/app
+
+  files:
+    build: ./files
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql://sensoruser:sensorpass@postgres:5432/sensorfleet
+      REDIS_URL: redis://redis:6379/0
+      FILES_DIR: /app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./files:/app
+      - files_storage:/app/storage
+
+volumes:
+  postgres_data:
+  files_storage:
+
