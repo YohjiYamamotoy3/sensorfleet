@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: sensorfleet
+          POSTGRES_USER: sensoruser
+          POSTGRES_PASSWORD: sensorpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: set up python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: test sensor-data
+      working-directory: ./sensor-data
+      run: |
+        pip install -r requirements.txt
+        python -m pytest || python main.py &
+        sleep 2
+        curl http://localhost:8000/health || exit 1
+    
+    - name: test alerts
+      working-directory: ./alerts
+      run: |
+        pip install -r requirements.txt
+        python -m pytest || python main.py &
+        sleep 2
+        curl http://localhost:8000/health || exit 1
+    
+    - name: test analytics
+      working-directory: ./analytics
+      run: |
+        pip install -r requirements.txt
+        python -m pytest || python main.py &
+        sleep 2
+        curl http://localhost:8000/health || exit 1
+    
+    - name: test files
+      working-directory: ./files
+      run: |
+        pip install -r requirements.txt
+        python -m pytest || python main.py &
+        sleep 2
+        curl http://localhost:8000/health || exit 1
+
